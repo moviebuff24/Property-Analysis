@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STR Financial Model</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f0f2f5; --surface: #ffffff;
+  --border: #e2e8f0; --border-soft: #f1f5f9;
+  --text: #1a1a2e; --text-2: #4a5568; --text-3: #6b7280; --muted: #8892a4;
+  --header-bg: #1a1a2e;
+  --accent: #f97316; --accent-dark: #ea580c; --accent-bg: #fff7ed; --accent-text: #c2410c;
+  --red: #ef4444; --red-bg: #fef2f2; --red-text: #dc2626;
+  --amber: #f59e0b; --amber-bg: #fffbeb; --amber-text: #d97706;
+  --green: #10b981; --green-bg: #f0fdf4; --green-text: #16a34a;
+  --blue: #3b82f6; --blue-bg: #eff6ff; --blue-text: #2563eb;
+  --purple: #8b5cf6; --purple-bg: #f5f3ff; --purple-text: #7c3aed;
+  --shadow: 0 1px 3px rgba(0,0,0,.07);
+  --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-pill: 999px;
+  --header-h: 58px; --sidebar-w: 320px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 16px; }
+
+/* ── HEADER ── */
+header {
+  background: var(--header-bg); color: white;
+  height: var(--header-h); padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.header-left { display: flex; align-items: baseline; gap: 12px; }
+.header-left h1 { font-size: 1rem; font-weight: 600; }
+.header-sub { font-size: 0.8rem; color: var(--muted); }
+
+.header-scenarios { display: flex; gap: 6px; }
+.hs {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 5px 16px; border-radius: var(--r-sm); min-width: 110px;
+}
+.hs.conservative { background: rgba(245,158,11,0.18); }
+.hs.base         { background: rgba(59,130,246,0.18); }
+.hs.optimistic   { background: rgba(16,185,129,0.18); }
+.hs-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.hs-value { font-size: 0.92rem; font-weight: 700; }
+.hs-value.positive { color: #6ee7b7; }
+.hs-value.negative { color: #fca5a5; }
+.hs-value.neutral  { color: white; }
+
+/* ── LAYOUT ── */
+.layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  min-height: calc(100vh - var(--header-h));
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+  position: sticky; top: var(--header-h);
+  height: calc(100vh - var(--header-h));
+  overflow-y: auto;
+}
+
+.label {
+  font-size: 0.65rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--muted); margin: 20px 0 10px;
+}
+.label:first-child { margin-top: 0; }
+
+.field { margin-bottom: 8px; }
+.field label { display: block; font-size: 0.75rem; color: var(--text-2); margin-bottom: 3px; }
+.field input {
+  width: 100%; padding: 6px 10px;
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  font-size: 0.85rem; color: var(--text); font-family: var(--font);
+  transition: border-color 0.15s;
+}
+.field input:focus { outline: none; border-color: var(--accent); }
+
+/* Season inputs */
+.season-section { margin-bottom: 10px; }
+.season-section-name {
+  font-size: 0.68rem; font-weight: 600; color: var(--text-3);
+  margin-bottom: 5px; padding: 3px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.season-simple-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 5px;
+}
+.season-simple-row .field { margin-bottom: 0; }
+.season-simple-row .field label { font-size: 0.62rem; }
+.season-simple-row .field input { padding: 5px 8px; text-align: center; font-size: 0.82rem; }
+.derived-row {
+  display: flex; gap: 12px; font-size: 0.7rem;
+  color: var(--muted); margin-bottom: 4px; padding: 2px 0;
+}
+.derived-cons { color: var(--amber-text); font-weight: 600; }
+.derived-opt  { color: var(--green-text); font-weight: 600; }
+
+/* ── MAIN ── */
+.main { padding: 20px; }
+
+/* Acquisition summary bar */
+.acq-bar {
+  background: var(--surface); border-radius: var(--r-lg);
+  box-shadow: var(--shadow); padding: 14px 20px;
+  display: flex; gap: 24px; flex-wrap: wrap;
+  margin-bottom: 18px; align-items: center;
+}
+.acq-item { display: flex; flex-direction: column; }
+.acq-item-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 2px; }
+.acq-item-value { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+.acq-divider { width: 1px; background: var(--border); align-self: stretch; }
+
+/* Tabs */
+.tab-nav { display: flex; gap: 6px; margin-bottom: 20px; }
+.tab-btn {
+  padding: 8px 24px;
+  border: none; border-radius: var(--r-sm);
+  font-size: 0.82rem; font-weight: 600; font-family: var(--font);
+  cursor: pointer; transition: all 0.15s;
+  background: var(--surface); color: var(--text-3);
+  box-shadow: var(--shadow);
+}
+.tab-btn:hover { color: var(--text-2); }
+.tab-btn.active.conservative { background: var(--amber);  color: white; }
+.tab-btn.active.base         { background: var(--blue);   color: white; }
+.tab-btn.active.optimistic   { background: var(--green);  color: white; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* KPI Cards */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px; margin-bottom: 18px;
+}
+.card {
+  background: var(--surface); border-radius: var(--r-lg);
+  box-shadow: var(--shadow); padding: 18px;
+  border-top: 3px solid transparent;
+}
+.card.conservative { border-top-color: var(--amber); }
+.card.base         { border-top-color: var(--blue); }
+.card.optimistic   { border-top-color: var(--green); }
+.card h3 {
+  font-size: 0.65rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--muted); margin-bottom: 12px;
+}
+.kpi { font-size: 2rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.kpi.positive { color: var(--green-text); }
+.kpi.negative { color: var(--red-text); }
+.kpi.neutral  { color: var(--text); }
+#tab-conservative .kpi.scenario { color: var(--amber-text); }
+#tab-base         .kpi.scenario { color: var(--blue-text); }
+#tab-optimistic   .kpi.scenario { color: var(--green-text); }
+.kpi-sub { font-size: 0.75rem; color: var(--muted); margin-top: 5px; }
+
+/* Two column */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+
+/* Occupancy table */
+.occ-table { width: 100%; border-collapse: collapse; }
+.occ-table th {
+  font-size: 0.62rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); text-align: right;
+  padding: 0 0 8px; border-bottom: 1px solid var(--border);
+}
+.occ-table th:first-child { text-align: left; }
+.occ-table td {
+  font-size: 0.8rem; color: var(--text-2);
+  text-align: right; padding: 7px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.occ-table td:first-child { text-align: left; color: var(--text); font-weight: 500; }
+.occ-table tbody tr:last-child td { border-bottom: none; font-weight: 700; color: var(--text); }
+
+/* Cost bars */
+.cost-bar-row { margin-bottom: 9px; }
+.cost-bar-label {
+  display: flex; justify-content: space-between;
+  font-size: 0.78rem; color: var(--text-2); margin-bottom: 3px;
+}
+.cost-bar-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.cost-bar-fill { height: 100%; border-radius: 3px; background: var(--blue); transition: width 0.4s ease; }
+.cost-total {
+  display: flex; justify-content: space-between;
+  font-size: 0.82rem; font-weight: 700;
+  margin-top: 10px; padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
+/* Chart card */
+.chart-card {
+  background: var(--surface); border-radius: var(--r-lg);
+  box-shadow: var(--shadow); padding: 20px;
+  margin-bottom: 18px;
+}
+.chart-card h3 {
+  font-size: 0.65rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--muted); margin-bottom: 16px;
+}
+
+/* Break-even */
+.be-row { margin-bottom: 14px; }
+.be-meta {
+  display: flex; justify-content: space-between;
+  font-size: 0.8rem; color: var(--text-2); margin-bottom: 4px;
+}
+.be-track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.be-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+.be-fill.ok   { background: var(--green); }
+.be-fill.warn { background: var(--amber); }
+.be-fill.over { background: var(--red); }
+.be-summary {
+  margin-top: 14px; padding: 10px 14px;
+  border-radius: var(--r-md); font-size: 0.82rem; font-weight: 500;
+}
+.be-summary.ok   { background: var(--green-bg); color: var(--green-text); }
+.be-summary.over { background: var(--red-bg);   color: var(--red-text); }
+
+/* 10-year projection table */
+.proj-table { width: 100%; border-collapse: collapse; }
+.proj-table th {
+  font-size: 0.62rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); text-align: right;
+  padding: 0 10px 8px; border-bottom: 1px solid var(--border);
+}
+.proj-table th:first-child { text-align: left; padding-left: 0; }
+.proj-table td {
+  font-size: 0.8rem; color: var(--text-2);
+  text-align: right; padding: 6px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  font-variant-numeric: tabular-nums;
+}
+.proj-table td:first-child { text-align: left; padding-left: 0; font-weight: 600; color: var(--text); }
+.proj-table td.positive { color: var(--green-text); font-weight: 600; }
+.proj-table td.negative { color: var(--red-text); font-weight: 600; }
+.proj-table tbody tr:last-child td { border-bottom: none; }
+.proj-table th.total-return { color: var(--text-2); font-weight: 800; }
+.proj-table td.total-return { font-size: 0.85rem; font-weight: 700; }
+.proj-table tr.breakeven-row td { background: var(--green-bg); }
+.proj-table tr.breakeven-row td:first-child { border-left: 3px solid var(--green); padding-left: 6px; }
+.proj-note { font-size: 0.72rem; color: var(--muted); margin-top: 10px; }
+.proj-summary {
+  padding: 10px 14px; border-radius: var(--r-md);
+  font-size: 0.82rem; font-weight: 500; margin-bottom: 14px;
+}
+.proj-summary.positive { background: var(--green-bg); color: var(--green-text); }
+.proj-summary.negative { background: var(--red-bg); color: var(--red-text); }
+.proj-summary strong { font-weight: 700; }
+
+/* Personal use callout */
+.personal-callout {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: var(--r-sm);
+  background: var(--amber-bg); color: var(--amber-text);
+  font-size: 0.78rem; margin-top: 10px;
+}
+
+/* ── EXPORT BUTTON ── */
+.btn-export {
+  padding: 6px 14px;
+  background: var(--accent); color: white;
+  border: none; border-radius: var(--r-sm);
+  font-size: 0.78rem; font-weight: 600; font-family: var(--font);
+  cursor: pointer; transition: background 0.15s; white-space: nowrap;
+}
+.btn-export:hover { background: var(--accent-dark); }
+
+/* ── PRINT HEADERS (hidden on screen) ── */
+.scenario-print-header { display: none; }
+
+/* ── PRINT / PDF ── */
+@media print {
+  body { background: white; }
+
+  header {
+    position: static;
+    background: white !important;
+    color: var(--text) !important;
+    border-bottom: 2px solid #1a1a2e;
+    height: auto; padding: 10px 0; margin-bottom: 4px;
+  }
+  .header-left h1 { color: var(--text) !important; font-size: 1.1rem; }
+  .header-sub { color: var(--muted) !important; }
+  .header-right { display: none !important; }
+
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .main { padding: 0; }
+
+  .acq-bar { box-shadow: none; border: 1px solid var(--border); }
+
+  .tab-nav { display: none; }
+  .tab-panel { display: block !important; }
+
+  #tab-base      { break-before: page; page-break-before: always; }
+  #tab-optimistic { break-before: page; page-break-before: always; }
+
+  .scenario-print-header {
+    display: block;
+    font-size: 1rem; font-weight: 700;
+    padding: 10px 0 10px;
+    margin-bottom: 16px;
+    border-bottom: 3px solid currentColor;
+  }
+  #tab-conservative .scenario-print-header { color: var(--amber); }
+  #tab-base         .scenario-print-header { color: var(--blue); }
+  #tab-optimistic   .scenario-print-header { color: var(--green); }
+
+  .card, .chart-card {
+    box-shadow: none !important;
+    border: 1px solid var(--border);
+    break-inside: avoid;
+  }
+  .kpi-row { grid-template-columns: repeat(5, 1fr); }
+  .two-col { grid-template-columns: 1fr 1fr; }
+  canvas { max-width: 100% !important; }
+}
+
+@media (max-width: 1100px) {
+  .kpi-row { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { height: auto; position: static; }
+  .two-col { grid-template-columns: 1fr; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .header-right { flex-direction: column; align-items: flex-end; gap: 6px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>STR Financial Model</h1>
+    <span class="header-sub" id="header-address">—</span>
+  </div>
+  <div class="header-right" style="display:flex;align-items:center;gap:12px">
+    <div class="header-scenarios">
+      <div class="hs conservative">
+        <span class="hs-label">Conservative</span>
+        <span class="hs-value" id="hs-cons">—</span>
+      </div>
+      <div class="hs base">
+        <span class="hs-label">Base</span>
+        <span class="hs-value" id="hs-base">—</span>
+      </div>
+      <div class="hs optimistic">
+        <span class="hs-label">Optimistic</span>
+        <span class="hs-value" id="hs-opt">—</span>
+      </div>
+    </div>
+    <button class="btn-export" onclick="exportPDF()">Export PDF</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+
+    <div class="label">Property</div>
+    <div class="field"><label>Address / Name</label><input id="address" type="text" value="TBD"></div>
+    <div class="field"><label>Purchase Price ($)</label><input id="purchase_price" type="number" value="300000"></div>
+    <div class="field"><label>Down Payment (%)</label><input id="down_pct" type="number" value="20" step="0.5"></div>
+    <div class="field"><label>Interest Rate (%)</label><input id="interest_rate" type="number" value="7.25" step="0.05"></div>
+    <div class="field"><label>Loan Term (years)</label><input id="loan_term" type="number" value="30"></div>
+    <div class="field"><label>Property Tax Rate (%)</label><input id="tax_rate" type="number" value="1.5" step="0.1"></div>
+    <div class="field"><label>Annual Appreciation (%)</label><input id="appreciation" type="number" value="3.5" step="0.5"></div>
+    <div class="field"><label>Revenue Growth Rate (%/yr)</label><input id="rev_growth" type="number" value="2" step="0.5"></div>
+
+    <div class="label">Acquisition Costs</div>
+    <div class="field"><label>Furnishing ($)</label><input id="furnishing" type="number" value="20000"></div>
+    <div class="field"><label>Closing Costs ($)</label><input id="closing" type="number" value="8000"></div>
+
+    <div class="label">Operating Costs</div>
+    <div class="field"><label>STR Insurance ($/yr)</label><input id="insurance" type="number" value="2200"></div>
+    <div class="field"><label>Utilities ($/mo)</label><input id="utilities" type="number" value="300"></div>
+    <div class="field"><label>Maintenance Reserve (%)</label><input id="maintenance_pct" type="number" value="1" step="0.1"></div>
+    <div class="field"><label>HOA ($/mo)</label><input id="hoa" type="number" value="0"></div>
+    <div class="field"><label>Property Mgmt Fee (%)</label><input id="mgmt_pct" type="number" value="0" step="1"></div>
+    <div class="field"><label>Platform Fee, e.g. Airbnb (%)</label><input id="platform_pct" type="number" value="3" step="0.5"></div>
+    <div class="field"><label>Personal Use Nights / yr</label><input id="personal_nights" type="number" value="0"></div>
+
+    <div class="label">Revenue Assumptions</div>
+
+    <div class="field">
+      <label>Scenario Spread (± %)</label>
+      <input id="spread_pct" type="number" value="25" step="5">
+    </div>
+
+    <div class="season-section">
+      <div class="season-section-name">Peak — Jun, Jul, Aug (92 days)</div>
+      <div class="season-simple-row">
+        <div class="field"><label>Rate / night</label><input id="peak_rate" type="number" value="250"></div>
+        <div class="field"><label>Base nights</label><input id="peak_base" type="number" value="70"></div>
+      </div>
+      <div class="derived-row">
+        <span>Cons: <span class="derived-cons" id="peak_cons_display">—</span></span>
+        <span>Opt: <span class="derived-opt" id="peak_opt_display">—</span></span>
+      </div>
+    </div>
+
+    <div class="season-section">
+      <div class="season-section-name">Shoulder — May, Sep, Oct (92 days)</div>
+      <div class="season-simple-row">
+        <div class="field"><label>Rate / night</label><input id="shoulder_rate" type="number" value="175"></div>
+        <div class="field"><label>Base nights</label><input id="shoulder_base" type="number" value="25"></div>
+      </div>
+      <div class="derived-row">
+        <span>Cons: <span class="derived-cons" id="shoulder_cons_display">—</span></span>
+        <span>Opt: <span class="derived-opt" id="shoulder_opt_display">—</span></span>
+      </div>
+    </div>
+
+    <div class="season-section">
+      <div class="season-section-name">Off-season — Nov–Apr (181 days)</div>
+      <div class="season-simple-row">
+        <div class="field"><label>Rate / night</label><input id="offseason_rate" type="number" value="140"></div>
+        <div class="field"><label>Base nights</label><input id="offseason_base" type="number" value="10"></div>
+      </div>
+      <div class="derived-row">
+        <span>Cons: <span class="derived-cons" id="offseason_cons_display">—</span></span>
+        <span>Opt: <span class="derived-opt" id="offseason_opt_display">—</span></span>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <!-- Acquisition summary bar -->
+    <div class="acq-bar" id="acq-bar"></div>
+
+    <!-- Tab nav -->
+    <div class="tab-nav">
+      <button class="tab-btn conservative active" onclick="switchTab('conservative')">Conservative</button>
+      <button class="tab-btn base" onclick="switchTab('base')">Base</button>
+      <button class="tab-btn optimistic" onclick="switchTab('optimistic')">Optimistic</button>
+    </div>
+
+    <!-- Conservative tab -->
+    <div class="tab-panel active" id="tab-conservative">
+      <div class="scenario-print-header">Conservative Scenario</div>
+      <div class="kpi-row" id="kpi-conservative"></div>
+      <div class="two-col">
+        <div class="card"><h3>Occupancy Breakdown</h3><div id="occ-conservative"></div></div>
+        <div class="card"><h3>Annual Cost Breakdown</h3><div id="costs-conservative"></div></div>
+      </div>
+      <div class="chart-card">
+        <h3>Estimated Revenue by Month</h3>
+        <canvas id="chart-conservative" height="150"></canvas>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <h3>Break-Even Analysis</h3>
+        <div id="breakeven-conservative"></div>
+      </div>
+      <div class="card">
+        <h3>10-Year Outlook</h3>
+        <div id="projection-conservative"></div>
+      </div>
+    </div>
+
+    <!-- Base tab -->
+    <div class="tab-panel" id="tab-base">
+      <div class="scenario-print-header">Base Scenario</div>
+      <div class="kpi-row" id="kpi-base"></div>
+      <div class="two-col">
+        <div class="card"><h3>Occupancy Breakdown</h3><div id="occ-base"></div></div>
+        <div class="card"><h3>Annual Cost Breakdown</h3><div id="costs-base"></div></div>
+      </div>
+      <div class="chart-card">
+        <h3>Estimated Revenue by Month</h3>
+        <canvas id="chart-base" height="150"></canvas>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <h3>Break-Even Analysis</h3>
+        <div id="breakeven-base"></div>
+      </div>
+      <div class="card">
+        <h3>10-Year Outlook</h3>
+        <div id="projection-base"></div>
+      </div>
+    </div>
+
+    <!-- Optimistic tab -->
+    <div class="tab-panel" id="tab-optimistic">
+      <div class="scenario-print-header">Optimistic Scenario</div>
+      <div class="kpi-row" id="kpi-optimistic"></div>
+      <div class="two-col">
+        <div class="card"><h3>Occupancy Breakdown</h3><div id="occ-optimistic"></div></div>
+        <div class="card"><h3>Annual Cost Breakdown</h3><div id="costs-optimistic"></div></div>
+      </div>
+      <div class="chart-card">
+        <h3>Estimated Revenue by Month</h3>
+        <canvas id="chart-optimistic" height="150"></canvas>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <h3>Break-Even Analysis</h3>
+        <div id="breakeven-optimistic"></div>
+      </div>
+      <div class="card">
+        <h3>10-Year Outlook</h3>
+        <div id="projection-optimistic"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const chartInstances = {};
+let activeTab = 'conservative';
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.querySelector('.tab-btn.' + tab).classList.add('active');
+  renderMonthlyChart(tab);
+}
+
+function val(id) { return parseFloat(document.getElementById(id).value) || 0; }
+
+function fmtD(n, signed = false) {
+  const abs = Math.abs(Math.round(n));
+  const sign = n < 0 ? '-' : (signed && n > 0 ? '+' : '');
+  return sign + '$' + abs.toLocaleString();
+}
+function fmtP(n, signed = false) {
+  return (signed && n > 0 ? '+' : '') + n.toFixed(1) + '%';
+}
+function cc(n) { return n < 0 ? 'negative' : n > 0 ? 'positive' : 'neutral'; }
+
+function mortgage(principal, annRate, years) {
+  if (annRate === 0) return principal / (years * 12);
+  const r = annRate / 12, n = years * 12;
+  return principal * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+}
+
+function getNights(season, scenario) {
+  const base = val(season + '_base');
+  const spread = val('spread_pct') / 100;
+  if (scenario === 'base') return base;
+  if (scenario === 'cons') return Math.max(0, Math.round(base * (1 - spread)));
+  return Math.round(base * (1 + spread));
+}
+
+// Distribute seasonal nights across 12 months (index 0=Jan)
+function monthlyRevenue(suffix) {
+  const pRate = val('peak_rate'), sRate = val('shoulder_rate'), oRate = val('offseason_rate');
+  const pN = getNights('peak', suffix), sN = getNights('shoulder', suffix), oN = getNights('offseason', suffix);
+  const monthly = new Array(12).fill(0);
+
+  // Peak: Jun(5)=30, Jul(6)=31, Aug(7)=31 → 92 days
+  [[5,30],[6,31],[7,31]].forEach(([m,d]) => { monthly[m] += (d/92) * pN * pRate; });
+  // Shoulder: May(4)=31, Sep(8)=30, Oct(9)=31 → 92 days
+  [[4,31],[8,30],[9,31]].forEach(([m,d]) => { monthly[m] += (d/92) * sN * sRate; });
+  // Off-season: Nov(10)=30, Dec(11)=31, Jan(0)=31, Feb(1)=28, Mar(2)=31, Apr(3)=30 → 181 days
+  [[10,30],[11,31],[0,31],[1,28],[2,31],[3,30]].forEach(([m,d]) => { monthly[m] += (d/181) * oN * oRate; });
+  return monthly;
+}
+
+function renderMonthlyChart(tab) {
+  const suffix = { conservative: 'cons', base: 'base', optimistic: 'opt' }[tab];
+  const monthly = monthlyRevenue(suffix);
+
+  const price = val('purchase_price');
+  const loan = price * (1 - val('down_pct') / 100);
+  const moMo = mortgage(loan, val('interest_rate') / 100, val('loan_term'));
+  const fixedPerMonth = (
+    moMo * 12 +
+    price * (val('tax_rate') / 100) +
+    val('insurance') +
+    val('utilities') * 12 +
+    price * (val('maintenance_pct') / 100) +
+    val('hoa') * 12
+  ) / 12;
+
+  const tabColor = {
+    conservative: { bg: 'rgba(245,158,11,0.65)', border: '#f59e0b' },
+    base:         { bg: 'rgba(59,130,246,0.65)',  border: '#3b82f6' },
+    optimistic:   { bg: 'rgba(16,185,129,0.65)',  border: '#10b981' },
+  }[tab];
+
+  const canvasId = 'chart-' + tab;
+  if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+
+  chartInstances[canvasId] = new Chart(document.getElementById(canvasId), {
+    type: 'bar',
+    data: {
+      labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+      datasets: [
+        {
+          label: 'Est. Revenue',
+          data: monthly.map(v => Math.round(v)),
+          backgroundColor: tabColor.bg,
+          borderColor: tabColor.border,
+          borderWidth: 2, borderRadius: 4, order: 2,
+        },
+        {
+          label: 'Fixed Costs / mo',
+          data: new Array(12).fill(Math.round(fixedPerMonth)),
+          type: 'line',
+          borderColor: '#ef4444', borderWidth: 2,
+          borderDash: [5, 4], pointRadius: 0, fill: false, order: 1,
+        }
+      ]
+    },
+    options: {
+      plugins: {
+        legend: { labels: { font: { size: 11 }, boxWidth: 12 } },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtD(ctx.raw) } }
+      },
+      scales: {
+        y: { ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k', font: { size: 11 } }, grid: { color: '#f0f2f5' } },
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function calculate() {
+  const price       = val('purchase_price');
+  const downPct     = val('down_pct') / 100;
+  const down        = price * downPct;
+  const loan        = price - down;
+  const rate        = val('interest_rate') / 100;
+  const term        = val('loan_term');
+  const taxRate     = val('tax_rate') / 100;
+  const furnish     = val('furnishing');
+  const closing     = val('closing');
+  const apprecRate  = val('appreciation') / 100;
+  const revGrowth   = val('rev_growth') / 100;
+  const personalN   = val('personal_nights');
+
+  const moMo        = mortgage(loan, rate, term);
+  const taxes       = price * taxRate;
+  const insurance   = val('insurance');
+  const utilities   = val('utilities') * 12;
+  const maintenance = price * (val('maintenance_pct') / 100);
+  const hoa         = val('hoa') * 12;
+  const annMortgage = moMo * 12;
+  const fixedCosts  = annMortgage + taxes + insurance + utilities + maintenance + hoa;
+  const totalCashIn = down + furnish + closing;
+
+  // Header address
+  document.getElementById('header-address').textContent = document.getElementById('address').value || '—';
+
+  // Update derived scenario displays in sidebar
+  ['peak', 'shoulder', 'offseason'].forEach(s => {
+    const ec = document.getElementById(s + '_cons_display');
+    const eo = document.getElementById(s + '_opt_display');
+    if (ec) ec.textContent = getNights(s, 'cons') + ' nights';
+    if (eo) eo.textContent = getNights(s, 'opt') + ' nights';
+  });
+
+  // Revenue per scenario
+  function rev(suffix) {
+    const pR = val('peak_rate'), sR = val('shoulder_rate'), oR = val('offseason_rate');
+    const pN = getNights('peak', suffix), sN = getNights('shoulder', suffix), oN = getNights('offseason', suffix);
+    const gross    = pN * pR + sN * sR + oN * oR;
+    const platform = gross * (val('platform_pct') / 100);
+    const mgmt     = (gross - platform) * (val('mgmt_pct') / 100);
+    const net      = gross - platform - mgmt;
+    const cashflow = net - fixedCosts;
+    return { gross, platform, mgmt, net, cashflow, pN, sN, oN, total: pN + sN + oN };
+  }
+
+  const scenarios = {
+    conservative: rev('cons'),
+    base:         rev('base'),
+    optimistic:   rev('opt'),
+  };
+
+  // Header snapshots
+  ['conservative','base','optimistic'].forEach(t => {
+    const d = scenarios[t];
+    const el = document.getElementById('hs-' + { conservative:'cons', base:'base', optimistic:'opt' }[t]);
+    el.textContent = fmtD(d.cashflow / 12, true) + '/mo';
+    el.className = 'hs-value ' + cc(d.cashflow);
+  });
+
+  // Acquisition bar
+  document.getElementById('acq-bar').innerHTML = [
+    { label: 'Purchase Price', value: fmtD(price) },
+    { label: 'Down Payment', value: fmtD(down) + ' (' + val('down_pct') + '%)' },
+    { label: 'Loan Amount', value: fmtD(loan) },
+    { label: 'Furnishing', value: fmtD(furnish) },
+    { label: 'Closing Costs', value: fmtD(closing) },
+    { label: 'Total Cash In', value: fmtD(totalCashIn) },
+    { label: 'Monthly Mortgage', value: fmtD(moMo) },
+    { label: 'Monthly All-In', value: fmtD(fixedCosts / 12) },
+  ].map((item, i) => {
+    const divider = i > 0 ? '<div class="acq-divider"></div>' : '';
+    return `${divider}<div class="acq-item"><span class="acq-item-label">${item.label}</span><span class="acq-item-value">${item.value}</span></div>`;
+  }).join('');
+
+  // Cost bars HTML (same across all tabs)
+  const costItems = [
+    { label: 'Mortgage (P&I)', value: annMortgage },
+    { label: 'Property Taxes', value: taxes },
+    { label: 'STR Insurance',  value: insurance },
+    { label: 'Utilities',      value: utilities },
+    { label: 'Maintenance',    value: maintenance },
+  ];
+  if (hoa > 0) costItems.push({ label: 'HOA', value: hoa });
+  const maxCost = Math.max(...costItems.map(c => c.value));
+  const costBarsHtml = costItems.map(c => `
+    <div class="cost-bar-row">
+      <div class="cost-bar-label"><span>${c.label}</span><span>${fmtD(c.value)}/yr</span></div>
+      <div class="cost-bar-track"><div class="cost-bar-fill" style="width:${(c.value/maxCost*100).toFixed(1)}%"></div></div>
+    </div>
+  `).join('') + `<div class="cost-total"><span>Total Fixed Costs</span><span>${fmtD(fixedCosts)}/yr · ${fmtD(fixedCosts/12)}/mo</span></div>`;
+
+  // Personal use opportunity cost
+  const personalCost = personalN * val('peak_rate');
+
+  // Build each tab
+  ['conservative', 'base', 'optimistic'].forEach(tab => {
+    const d = scenarios[tab];
+    const grossYield = price > 0 ? d.gross / price * 100 : 0;
+    const cocReturn  = totalCashIn > 0 ? d.cashflow / totalCashIn * 100 : 0;
+    const capRate    = price > 0 ? (d.cashflow + annMortgage) / price * 100 : 0;
+    const feeNote    = d.mgmt > 0 ? ' + mgmt' : '';
+
+    // KPIs
+    document.getElementById('kpi-' + tab).innerHTML = `
+      <div class="card ${tab}">
+        <h3>Gross Revenue</h3>
+        <div class="kpi scenario">${fmtD(d.gross)}</div>
+        <div class="kpi-sub">${fmtP(grossYield)} gross yield · ${d.total} nights</div>
+      </div>
+      <div class="card ${tab}">
+        <h3>Net Revenue</h3>
+        <div class="kpi scenario">${fmtD(d.net)}</div>
+        <div class="kpi-sub">after platform${feeNote} fees</div>
+      </div>
+      <div class="card ${tab}">
+        <h3>Cash Flow</h3>
+        <div class="kpi ${cc(d.cashflow)}">${fmtD(d.cashflow, true)}</div>
+        <div class="kpi-sub">${fmtD(d.cashflow / 12, true)}/mo · net rev − fixed costs</div>
+      </div>
+      <div class="card ${tab}">
+        <h3>Cap Rate</h3>
+        <div class="kpi ${cc(capRate)}">${fmtP(capRate, true)}</div>
+        <div class="kpi-sub">NOI ÷ purchase price</div>
+      </div>
+      <div class="card ${tab}">
+        <h3>Cash-on-Cash Return</h3>
+        <div class="kpi ${cc(cocReturn)}">${fmtP(cocReturn, true)}</div>
+        <div class="kpi-sub">${fmtD(totalCashIn)} total cash in</div>
+      </div>
+    `;
+
+    // Occupancy table
+    const pRev = d.pN * val('peak_rate');
+    const sRev = d.sN * val('shoulder_rate');
+    const oRev = d.oN * val('offseason_rate');
+    const pOcc = (d.pN / 92 * 100).toFixed(0);
+    const sOcc = (d.sN / 92 * 100).toFixed(0);
+    const oOcc = (d.oN / 181 * 100).toFixed(0);
+    const tOcc = (d.total / 365 * 100).toFixed(0);
+
+    let personalRow = '';
+    if (personalN > 0) {
+      personalRow = `<div class="personal-callout">Personal use: ${personalN} nights blocked — ~${fmtD(personalCost)} in foregone peak revenue</div>`;
+    }
+
+    document.getElementById('occ-' + tab).innerHTML = `
+      <table class="occ-table">
+        <thead><tr>
+          <th>Season</th><th>Nights</th><th>Occ %</th><th>Revenue</th><th>Rate</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>Peak (Jun–Aug)</td><td>${d.pN}</td><td>${pOcc}%</td><td>${fmtD(pRev)}</td><td>${fmtD(val('peak_rate'))}</td></tr>
+          <tr><td>Shoulder (May, Sep–Oct)</td><td>${d.sN}</td><td>${sOcc}%</td><td>${fmtD(sRev)}</td><td>${fmtD(val('shoulder_rate'))}</td></tr>
+          <tr><td>Off-season (Nov–Apr)</td><td>${d.oN}</td><td>${oOcc}%</td><td>${fmtD(oRev)}</td><td>${fmtD(val('offseason_rate'))}</td></tr>
+          <tr><td>Total</td><td>${d.total}</td><td>${tOcc}%</td><td>${fmtD(d.gross)}</td><td>—</td></tr>
+        </tbody>
+      </table>
+      ${personalRow}
+    `;
+
+    // Costs (identical across tabs)
+    document.getElementById('costs-' + tab).innerHTML = costBarsHtml;
+
+    // Break-even
+    const seasonData = [
+      { label: 'Peak (Jun–Aug)',        days: 92,  nights: d.pN, rate: val('peak_rate') },
+      { label: 'Shoulder (May, Sep–Oct)', days: 92, nights: d.sN, rate: val('shoulder_rate') },
+      { label: 'Off-season (Nov–Apr)',  days: 181, nights: d.oN, rate: val('offseason_rate') },
+    ];
+    const blendedRate = d.total > 0 ? d.gross / d.total : 0;
+    const nightsNeeded = blendedRate > 0 ? Math.ceil(fixedCosts / blendedRate) : 0;
+    const gap = d.total - nightsNeeded;
+
+    let beHtml = seasonData.map(s => {
+      const needed = s.rate > 0 ? Math.ceil(fixedCosts / s.rate) : 0;
+      const pct = Math.min(s.nights / s.days * 100, 100);
+      const fillClass = s.nights >= needed ? 'ok' : (needed / s.days > 0.8 ? 'warn' : 'over');
+      return `
+        <div class="be-row">
+          <div class="be-meta">
+            <span>${s.label}</span>
+            <span>${s.nights} booked · ${needed} nights needed to cover all costs · ${s.days} available</span>
+          </div>
+          <div class="be-track"><div class="be-fill ${fillClass}" style="width:${pct}%"></div></div>
+        </div>
+      `;
+    }).join('');
+
+    const beClass = d.cashflow >= 0 ? 'ok' : 'over';
+    const beSummary = d.cashflow >= 0
+      ? `Surplus of ${fmtD(d.cashflow)}/yr. At the blended rate of ${fmtD(blendedRate)}/night, you need ${nightsNeeded} total nights to break even — this scenario books ${d.total}, leaving ${gap} nights of cushion.`
+      : `Shortfall of ${fmtD(Math.abs(d.cashflow))}/yr. At the blended rate of ${fmtD(blendedRate)}/night, you need ${nightsNeeded} total nights — this scenario books ${d.total}, a gap of ${Math.abs(gap)} nights.`;
+    beHtml += `<div class="be-summary ${beClass}">${beSummary}</div>`;
+    document.getElementById('breakeven-' + tab).innerHTML = beHtml;
+
+    // 10-year projection
+    let projRows = '';
+    let cumCF = 0;
+    let propValue = price;
+    const moRate = rate / 12;
+    const nPay = term * 12;
+    let breakEvenYear = null;
+    let yr10TotalReturn = 0;
+
+    for (let yr = 1; yr <= 10; yr++) {
+      const prevCumCF = cumCF;
+      const revFactor = Math.pow(1 + revGrowth, yr - 1);
+      const yearCashflow = (d.net * revFactor) - fixedCosts;
+      cumCF += yearCashflow;
+      propValue *= (1 + apprecRate);
+      const k = yr * 12;
+      const loanBal = moRate > 0
+        ? loan * (Math.pow(1+moRate, nPay) - Math.pow(1+moRate, k)) / (Math.pow(1+moRate, nPay) - 1)
+        : Math.max(0, loan - (loan / nPay) * k);
+      const equity = Math.max(0, propValue - loanBal);
+      const totalReturn = cumCF + (equity - down);
+      yr10TotalReturn = totalReturn;
+
+      if (breakEvenYear === null && cumCF >= 0 && prevCumCF < 0) breakEvenYear = yr;
+      const rowClass = breakEvenYear === yr ? ' class="breakeven-row"' : '';
+
+      projRows += `
+        <tr${rowClass}>
+          <td>Year ${yr}</td>
+          <td class="${cc(yearCashflow)}">${fmtD(yearCashflow, true)}</td>
+          <td class="${cc(cumCF)}">${fmtD(cumCF, true)}</td>
+          <td>${fmtD(Math.round(propValue))}</td>
+          <td>${fmtD(Math.round(equity))}</td>
+          <td class="total-return ${cc(totalReturn)}">${fmtD(Math.round(totalReturn), true)}</td>
+        </tr>
+      `;
+    }
+
+    const summaryClass = yr10TotalReturn >= 0 ? 'positive' : 'negative';
+    const summaryBreakevenText = breakEvenYear !== null
+      ? `Cumulative cash flow breaks even in <strong>Year ${breakEvenYear}</strong>`
+      : (cumCF >= 0
+          ? `Property is cash flow positive from <strong>Year 1</strong>`
+          : `Cumulative cash flow stays negative through Year 10`);
+
+    document.getElementById('projection-' + tab).innerHTML = `
+      <div class="proj-summary ${summaryClass}">
+        ${summaryBreakevenText} · Year 10 total return: <strong>${fmtD(Math.round(yr10TotalReturn), true)}</strong>
+      </div>
+      <table class="proj-table">
+        <thead><tr>
+          <th>Year</th>
+          <th>Ann. Cash Flow</th>
+          <th>Cum. Cash Flow</th>
+          <th>Est. Property Value</th>
+          <th>Est. Equity</th>
+          <th class="total-return">Total Return</th>
+        </tr></thead>
+        <tbody>${projRows}</tbody>
+      </table>
+      <div class="proj-note">
+        Assumes ${fmtP(val('appreciation'))} annual appreciation · ${fmtP(val('rev_growth'))} revenue growth/yr · costs held constant.
+        Total Return = cumulative cash flow + equity gained above initial down payment. Not a financial projection.
+      </div>
+    `;
+  });
+
+  // Render chart for active tab
+  renderMonthlyChart(activeTab);
+}
+
+function exportPDF() {
+  // Render charts for all tabs so they appear in the PDF
+  ['conservative', 'base', 'optimistic'].forEach(tab => renderMonthlyChart(tab));
+  // Brief delay to let Chart.js finish drawing before the print dialog opens
+  setTimeout(() => window.print(), 200);
+}
+
+document.querySelectorAll('input').forEach(el => el.addEventListener('input', calculate));
+calculate();
+</script>
+</body>
+</html>
